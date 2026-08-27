@@ -1,34 +1,77 @@
-# 💵 Sistema de Orçamento (Excel/VBA + Python/MySQL)
+# Sistema de Orçamento (Excel/VBA + Python/MySQL)
 
-Automação do **orçamento** das 4 lojas em duas frentes: **macros VBA** no Excel (organização/consolidação)
-e um **ETL em Python** (Pandas + SQLAlchemy) que lê o `orcamento.xlsm` e carrega os dados em um **Data Warehouse MySQL**.
+Automação do orçamento de compras das lojas em duas frentes: macros VBA no Excel, que organizam e
+consolidam a planilha orçamentária, e um ETL em Python (Pandas + SQLAlchemy) que lê o `orcamento.xlsm`
+e carrega os dados em um Data Warehouse MySQL modelado em star schema. O projeto conecta a ferramenta
+que a operação já usa (Excel) a uma base analítica estruturada.
 
-> ⚠️ **Aviso sobre os dados**
-> Os dados neste repositório são **fictícios**, gerados apenas para demonstração. Os dados reais da
-> operação em que o projeto foi usado são **confidenciais e estão protegidos** — nada real, credencial
-> ou informação de terceiros foi incluído aqui.
+> **Nota de confidencialidade:** os dados presentes neste repositório são fictícios, gerados apenas
+> para demonstração. Os dados reais da operação são confidenciais e estão protegidos — nenhum dado
+> real, credencial ou informação de terceiros foi incluído aqui.
 
-## 🎯 Componentes
-- `vba/Módulo*.bas` — macros de organização e consolidação orçamentária.
-- `script_orcamento.py` — ETL que extrai datas/valores do Excel e faz **UPSERT** no banco (insere ou atualiza).
-- `sql/schema.sql` — DDL do banco (dimensões + fato).
+---
 
-## 🏗️ Modelo dimensional (star schema)
-```
+## Visão Geral
+
+O orçamento de compras nasce em Excel e precisa virar informação analisável. Este projeto padroniza a
+planilha com macros VBA e, em seguida, extrai datas e valores para carregar um modelo dimensional em
+MySQL, com carga do tipo UPSERT (insere ou atualiza) para que reexecuções mantenham a base
+consistente. O resultado é o acompanhamento de meta versus compra realizada com granularidade
+semanal, por loja, categoria e comprador.
+
+## Contexto de Negócio
+
+O orçamento de compras é o que separa o estoque saudável do capital parado: comprar acima da meta
+imobiliza dinheiro e aumenta o risco de perda; comprar abaixo gera ruptura. Controlar isso em
+planilhas soltas dificulta comparar meta e realizado e enxergar quem está estourando o orçamento.
+Estruturar o orçamento em um Data Warehouse devolve à área de compras a capacidade de acompanhar a
+execução da meta em tempo de corrigir.
+
+## O Problema que Resolve
+
+- **Orçamento preso no Excel**, sem uma base analítica para comparar meta e realizado.
+- **Consolidação manual** e sujeita a erro entre lojas e categorias.
+- **Falta de granularidade** para identificar onde a meta de compra está sendo estourada.
+
+## Público e Decisões Apoiadas
+
+- **Compras:** acompanha a execução da meta por categoria e comprador e corrige desvios.
+- **Diretoria:** enxerga o percentual de execução do orçamento por loja.
+- **Controladoria:** compara meta, compra, venda e CMV a partir de uma base única.
+
+## Impacto e Valor Gerado
+
+- Conecta a planilha operacional (Excel) a um Data Warehouse consultável.
+- Padroniza a consolidação orçamentária com macros VBA.
+- Acompanha meta versus compra realizada com granularidade semanal por loja, categoria e comprador.
+- Carga UPSERT: reexecuções atualizam sem duplicar.
+
+---
+
+## Arquitetura e Modelagem Dimensional (Star Schema)
+
+```text
    Dim_Loja      Dim_Mercadologico      Dim_Comprador      Dim_Tempo
-      │                 │                     │                │
-      └────────┬────────┴──────────┬──────────┴────────────────┘
-               ▼                    ▼
+      |                 |                     |                |
+      +--------+--------+----------+----------+----------------+
+               v                   v
                  Fato_OrcamentoCompras
-     (meta × compra realizada · venda · CMV · % execução | grão: semana × loja × categoria × comprador)
+   (meta x compra realizada - venda - CMV - % execução | grão: semana x loja x categoria x comprador)
 ```
-- **Dimensões:** `Dim_Loja`, `Dim_Mercadologico`, `Dim_Comprador`, `Dim_Tempo` (grão semanal, 1..5 semanas/mês).
-- **Fato:** `Fato_OrcamentoCompras` — meta vs. compra realizada, venda, CMV, diferença e % de execução da meta.
-- Chave natural do UPSERT: `FK_Tempo + FK_Loja + FK_Mercadologico + FK_Comprador`.
 
-DDL completo (chaves, FKs, índices e seed fictício de lojas) em [`sql/schema.sql`](sql/schema.sql).
+- **Dimensões:** `Dim_Loja`, `Dim_Mercadologico`, `Dim_Comprador` e `Dim_Tempo` (grão semanal, de 1 a
+  5 semanas por mês).
+- **Fato:** `Fato_OrcamentoCompras` — meta versus compra realizada, venda, CMV, diferença e percentual
+  de execução da meta.
+- **Chave natural do UPSERT:** `FK_Tempo + FK_Loja + FK_Mercadologico + FK_Comprador`.
+- DDL completo (chaves, FKs, índices e seed fictício) em `sql/schema.sql`.
 
-## ▶️ Como rodar (Python)
+## Stack
+
+Excel - VBA - Python - Pandas - SQLAlchemy - MySQL - ETL - Modelagem Dimensional.
+
+## Como Rodar (Python)
+
 ```bash
 pip install pandas numpy sqlalchemy pymysql openpyxl
 
@@ -39,18 +82,16 @@ mysql -u root < sql/schema.sql
 python script_orcamento.py
 ```
 
-## 📁 Estrutura
+## Estrutura do Projeto
+
+```text
+vba/Modulo*.bas       -> Macros de organização e consolidação no Excel
+script_orcamento.py   -> ETL Pandas + SQLAlchemy com UPSERT no MySQL
+sql/schema.sql        -> DDL do Data Warehouse (dimensões + fato)
+data_exemplo/         -> Planilha de exemplo (dados fictícios)
 ```
-vba/Módulo*.bas          # macros de organização/consolidação no Excel
-script_orcamento.py      # ETL Pandas + SQLAlchemy com UPSERT no MySQL
-sql/schema.sql           # DDL do Data Warehouse (dimensões + fato)
-data_exemplo/            # planilha de exemplo (dados fictícios)
-```
 
----
+## Autor
 
-### 🧰 Competências demonstradas
-`Excel` · `VBA` · `Python` · `Pandas` · `SQLAlchemy` · `MySQL` · `ETL` · `Modelagem Dimensional`
-
-### 👤 Autor
-**José Vitor Santos Pinheiro** — Analista de Dados / BI / Ciência de Dados · vytorsantt@gmail.com
+José Vitor Santos Pinheiro — Análise de Dados e Inteligência Comercial (Varejo e Supply Chain).
+Contato: vytorsantt@gmail.com
