@@ -95,3 +95,50 @@ data_exemplo/         -> Planilha de exemplo (dados fictícios)
 
 José Vitor Santos Pinheiro — Análise de Dados e Inteligência Comercial (Varejo, Indústria e Distribuição).
 Contato: vytorsantt@gmail.com
+
+## 🗺️ Modelo de Dados (DER)
+
+*Star schema* do Data Warehouse de orçamento de compras (MySQL). Renderizado pelo GitHub via Mermaid. *Dados fictícios de demonstração.*
+
+```mermaid
+erDiagram
+    Dim_Tempo ||--o{ Fato_OrcamentoCompras : "quando"
+    Dim_Loja ||--o{ Fato_OrcamentoCompras : "onde"
+    Dim_Mercadologico ||--o{ Fato_OrcamentoCompras : "categoria"
+    Dim_Comprador ||--o{ Fato_OrcamentoCompras : "quem"
+
+    Dim_Loja {
+        int PK_Loja PK
+        int Codigo_Loja
+        varchar Nome_Loja UK
+    }
+    Dim_Mercadologico {
+        int PK_Mercadologico PK
+        varchar Nome_Mercadologico UK
+    }
+    Dim_Comprador {
+        int PK_Comprador PK
+        varchar Nome_Comprador UK
+    }
+    Dim_Tempo {
+        int PK_Tempo PK
+        date Data_Inicio_Semana UK
+        smallint Ano
+        tinyint Mes
+        tinyint Numero_Semana "1..5"
+    }
+    Fato_OrcamentoCompras {
+        bigint PK_Fato PK
+        int FK_Tempo FK
+        int FK_Loja FK
+        int FK_Mercadologico FK
+        int FK_Comprador FK
+        decimal Venda_Semana
+        decimal CMV_Semana
+        decimal Meta_Orcamento_Semana
+        decimal Compra_Realizada_Semana
+        decimal Percentual_Execucao_Meta
+    }
+```
+
+**Grão:** semana × loja × mercadológico × comprador. Carga via ETL (Pandas + SQLAlchemy) com *upsert* pela chave natural das 4 FKs.
